@@ -17,13 +17,19 @@ endif()
 # Project options
 # 
 
+if (NOT DEFINED CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 11) # Not available before CMake 3.1; see below for manual command line argument addition
+endif ()
+
+if (NOT DEFINED CMAKE_CXX_EXTENSIONS)
+    set(CMAKE_CXX_EXTENSIONS OFF)
+endif ()
+
 set(DEFAULT_PROJECT_OPTIONS
     DEBUG_POSTFIX             "d"
-    CXX_STANDARD              11 # Not available before CMake 3.1; see below for manual command line argument addition
     LINKER_LANGUAGE           "CXX"
     POSITION_INDEPENDENT_CODE ON
     CXX_VISIBILITY_PRESET     "hidden"
-    CXX_EXTENSIONS            Off
 )
 
 
@@ -50,7 +56,8 @@ set(DEFAULT_COMPILE_DEFINITIONS
 )
 
 # MSVC compiler options
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC" OR
+    "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" AND "x${CMAKE_CXX_SIMULATE_ID}" MATCHES "xMSVC")
     set(DEFAULT_COMPILE_DEFINITIONS ${DEFAULT_COMPILE_DEFINITIONS}
         _SCL_SECURE_NO_WARNINGS  # Calling any one of the potentially unsafe methods in the Standard C++ Library
         _CRT_SECURE_NO_WARNINGS  # Calling any one of the potentially unsafe methods in the CRT Library
@@ -65,10 +72,12 @@ endif ()
 set(DEFAULT_COMPILE_OPTIONS)
 
 # MSVC compiler options
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
+if (MSVC)
     set(DEFAULT_COMPILE_OPTIONS ${DEFAULT_COMPILE_OPTIONS}
     PRIVATE
-        /MP           # -> build with multiple processes
+        $<$<CXX_COMPILER_ID:MSVC>:
+            /MP           # -> build with multiple processes
+        >
         /W4           # -> warning level 4
         # /WX         # -> treat warnings as errors
         /wd4251       # -> disable warning: 'identifier': class 'type' needs to have dll-interface to be used by clients of class 'type2'
@@ -79,6 +88,10 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
         # /Zm114      # -> Memory size for precompiled headers (insufficient for msvc 2013)
         /Zm200        # -> Memory size for precompiled headers
         
+        $<$<CXX_COMPILER_ID:Clang>:
+            -Wno-microsoft-cast
+        >
+
         #$<$<CONFIG:Debug>:
         #/RTCc         # -> value is assigned to a smaller data type and results in a data loss
         #>
@@ -97,7 +110,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
 endif ()
 
 # GCC and Clang compiler options
-if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" AND NOT MSVC)
     set(DEFAULT_COMPILE_OPTIONS ${DEFAULT_COMPILE_OPTIONS}
     PRIVATE
         #-fno-exceptions # since we use stl and stl is intended to use exceptions, exceptions should not be disabled
@@ -129,7 +142,12 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "GNU" OR "${CMAKE_CXX_COMPILER_ID}" MATCH
         
         $<$<CXX_COMPILER_ID:Clang>:
             -Wpedantic
-                
+        
+            $<$<PLATFORM_ID:Windows>:
+                -Wno-language-extension-token
+                -Wno-microsoft-cast
+            >
+
             # -Wreturn-stack-address # gives false positives
         >
     PUBLIC
